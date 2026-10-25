@@ -12,6 +12,9 @@
 // it connects, which means boot-time output isn't lost.
 
 void log_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+// Same buffer, no timestamp. For shell output.
+void con_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void log_write(const char *buf, size_t len);
 void log_hexdump(const uint8_t *buf, size_t len);
 

@@ -1,13 +1,20 @@
 // harold-printer: Pico 2 as a USB host for a MUNBYN thermal printer.
 //
-// Phase 1 (discovery): log whatever the printer exposes over USB.
+// Native USB port: CDC serial for logs and the command shell.
+// PIO-USB port (GP26/GP27): USB host, talks to the printer.
+// GP15 button: prints a random built-in photo.
 
 #include "hardware/clocks.h"
 #include "pico/stdlib.h"
 #include "pio_usb.h"
 #include "tusb.h"
 
+#include "app.h"
+#include "button.h"
 #include "log.h"
+#include "photos.h"
+#include "shell.h"
+#include "transport.h"
 #include "usb_probe.h"
 
 #define PIO_USB_DP_PIN  26  // D- is GP27; Pico-PIO-USB requires D- = D+ + 1
@@ -18,11 +25,11 @@
 
 static void led_task(void) {
 #ifdef LED_PIN
-  // Fast blink while nothing is plugged into the host port, solid when mounted.
+  // Fast blink while no printer is ready, solid when it is.
   static uint32_t last_ms;
   static bool on;
   uint32_t now = to_ms_since_boot(get_absolute_time());
-  if (tuh_mounted(1)) {
+  if (transport_ready()) {
     gpio_put(LED_PIN, 1);
   } else if (now - last_ms >= 250) {
     last_ms = now;
@@ -30,6 +37,14 @@ static void led_task(void) {
     gpio_put(LED_PIN, on);
   }
 #endif
+}
+
+void app_yield(void) {
+  tud_task();
+  tuh_task();
+  transport_task();
+  log_task();
+  led_task();
 }
 
 int main(void) {
@@ -45,9 +60,12 @@ int main(void) {
   gpio_set_dir(LED_PIN, GPIO_OUT);
 #endif
 
-  log_printf("harold-printer phase 1 (USB discovery), sys clk %lu Hz\r\n",
-             (unsigned long) clock_get_hz(clk_sys));
+  log_printf("harold-printer, sys clk %lu Hz, %u photo(s) built in\r\n",
+             (unsigned long) clock_get_hz(clk_sys), photo_count);
   usb_probe_init();
+  transport_init();
+  shell_init();
+  button_init();
 
   // Host on PIO-USB. tuh_configure() must run before the host stack starts.
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
@@ -64,10 +82,16 @@ int main(void) {
              PIO_USB_DP_PIN, PIO_USB_DP_PIN + 1);
 
   while (true) {
-    tud_task();
-    tuh_task();
+    app_yield();
     usb_probe_task();
-    log_task();
-    led_task();
+    shell_task();
+
+    if (button_pressed()) {
+      if (transport_ready()) {
+        photos_print(-1);
+      } else {
+        log_printf("button: no printer connected\r\n");
+      }
+    }
   }
 }

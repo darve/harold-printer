@@ -38,6 +38,17 @@ void log_printf(const char *fmt, ...) {
   log_write(line, (size_t) n);
 }
 
+void con_printf(const char *fmt, ...) {
+  char line[256];
+  va_list ap;
+  va_start(ap, fmt);
+  int n = vsnprintf(line, sizeof(line), fmt, ap);
+  va_end(ap);
+  if (n < 0) return;
+  if (n > (int) sizeof(line) - 1) n = sizeof(line) - 1;
+  log_write(line, (size_t) n);
+}
+
 void log_hexdump(const uint8_t *buf, size_t len) {
   char line[80];
   for (size_t off = 0; off < len; off += 16) {
