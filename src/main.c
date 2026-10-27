@@ -1,8 +1,9 @@
-// harold-printer: Pico 2 as a USB host for a MUNBYN thermal printer.
+// harold-printer: Pico 2 (or Pico W) as a USB host for a MUNBYN thermal printer.
 //
 // Native USB port: CDC serial for logs and the command shell.
 // PIO-USB port (GP26/GP27): USB host, talks to the printer.
 // GP15 button: prints a random built-in photo.
+// UART1 on GP4/GP5: print jobs from the TinyPICO Wi-Fi front end.
 
 #include "hardware/clocks.h"
 #include "pico/stdlib.h"
@@ -10,6 +11,7 @@
 #include "tusb.h"
 
 #include "app.h"
+#include "bridge.h"
 #include "button.h"
 #include "log.h"
 #include "photos.h"
@@ -66,6 +68,7 @@ int main(void) {
   transport_init();
   shell_init();
   button_init();
+  bridge_init();
 
   // Host on PIO-USB. tuh_configure() must run before the host stack starts.
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
@@ -85,6 +88,7 @@ int main(void) {
     app_yield();
     usb_probe_task();
     shell_task();
+    bridge_task();
 
     if (button_pressed()) {
       if (transport_ready()) {
