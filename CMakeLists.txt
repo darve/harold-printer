@@ -39,10 +39,12 @@ add_executable(harold_printer
   src/escpos.c
   src/log.c
   src/photos.c
+  src/printer.c
   src/printer_usb.c
   src/shell.c
   src/test_page.c
   src/transport.c
+  src/tspl.c
   src/usb_descriptors.c
   src/usb_probe.c
   ${PHOTOS_C}
