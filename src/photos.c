@@ -1,9 +1,8 @@
 #include "photos.h"
 
-#include "escpos.h"
 #include "log.h"
 #include "pico/rand.h"
-#include "transport.h"
+#include "printer.h"
 
 bool photos_print(int index) {
   static int last = -1;
@@ -26,10 +25,7 @@ bool photos_print(int index) {
   log_printf("photos: printing %d/%u \"%s\" (%ux%u)\r\n",
              index, photo_count, p->name, p->width, p->height);
 
-  bool ok = escpos_init()
-         && escpos_raster_image(p->bits, p->width, p->height)
-         && escpos_feed(4)
-         && transport_flush();
+  bool ok = printer_image(p->bits, p->width, p->height);
 
   log_printf("photos: %s\r\n", ok ? "done" : "FAILED");
   return ok;

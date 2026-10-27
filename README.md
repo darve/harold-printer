@@ -1,6 +1,13 @@
 # harold-printer
 
-Firmware for a Raspberry Pi Pico 2 (RP2350) that acts as a USB host and drives a MUNBYN IMP001B 58 mm thermal printer with ESC/POS. Press a button and it prints a random photo.
+Firmware for a Raspberry Pi Pico 2 (RP2350) that acts as a USB host and drives USB thermal printers. Press a button and it prints a random photo.
+
+Supported printers:
+
+| Printer | Language | Paper | Detected by |
+|---|---|---|---|
+| MUNBYN IMP001B | ESC/POS | 58 mm receipt roll, 384 dots | anything not listed below |
+| TPL TD-403T | TSPL | 4×6 in labels by default, 203 dpi | VID:PID `36fc:0413` |
 
 ## Wiring
 
@@ -57,8 +64,16 @@ Each time a device is plugged in, its USB descriptors are logged (`=== MOUNT ===
 | `raw <hex>` | Send raw bytes, e.g. `raw 1b 40` or `raw 1b40` |
 | `photos` | List built-in photos |
 | `photo [n]` | Print photo n, or a random one |
+| `mode [auto\|escpos\|tspl]` | Show or force the printer language (default `auto`) |
+| `label [w h [gap]]` | Show or set the TSPL label size, in mm or inches, e.g. `label 4in 6in` or `label 100 150 3` |
 
 Every printing command waits until the data has been sent and then prints `ok` or `FAILED`. A write gives up after 10 s with no progress (for example, out of paper) or if the printer is unplugged.
+
+### Label printers (TSPL)
+
+On a TSPL printer, `test` prints a test label (border, three text sizes, checkerboard). `print <text>` prints a label with that line on it, and `feed <n>` feeds n blank labels. Photos are scaled up by the largest whole number that fits the label (a 384 px photo prints at 2× on a 4-inch label) and centred.
+
+The label size defaults to 4×6 in with a 3 mm gap and resets on power-up. If labels drift or skip, set the size to match your roll with `label`.
 
 ## Clock choice
 
@@ -73,7 +88,9 @@ The layers are kept separate so the USB transport can be swapped for TTL serial 
 | `src/main.c` | Clock setup, TinyUSB dual-role init, main loop, button handling |
 | `src/printer_usb.c` | USB printer class (0x07) host driver, registered with TinyUSB as an app driver |
 | `src/transport.c` | 16 KB TX queue, sends one bulk transfer (8 packets) at a time and waits for each to complete |
+| `src/printer.c` | Picks ESC/POS or TSPL for the connected printer and routes print operations |
 | `src/escpos.c` | ESC/POS commands, including GS v 0 raster images sent in 24-row bands |
+| `src/tspl.c` | TSPL label commands: SIZE/GAP/CLS, TEXT, BITMAP (scaled photos), PRINT |
 | `src/test_page.c` | Test page and its 384 px border-and-checkerboard bitmap |
 | `src/photos.c` | Prints a built-in photo, chosen at random |
 | `src/shell.c` | Line-based command shell |
@@ -86,6 +103,8 @@ The layers are kept separate so the USB transport can be swapped for TTL serial 
 | `lib/Pico-PIO-USB` | Submodule, pinned to 0.7.2 for the RP2350-E9 fix (unplug detection) |
 
 ## Not yet verified on hardware
+
+- TSPL mode beyond plain text: the test label, photos via BITMAP, `feed`, and label sizes other than 4×6 in.
 
 - Printing of any kind: the test page, bitmap alignment, and running `test` 10 times in a row.
 - Whether the IMP001B centres or left-aligns raster images. The photos are full width, so it shouldn't matter.
