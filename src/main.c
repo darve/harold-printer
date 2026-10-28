@@ -91,7 +91,10 @@ int main(void) {
     bridge_task();
 
     if (button_pressed()) {
-      if (transport_ready()) {
+      if (bridge_button_remote()) {
+        log_printf("button: sent to the Wi-Fi front end\r\n");
+        bridge_send_event("BUTTON");
+      } else if (transport_ready()) {
         photos_print(-1);
       } else {
         log_printf("button: no printer connected\r\n");

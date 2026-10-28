@@ -14,6 +14,7 @@ static const char MAIN_PAGE[] PROGMEM = R"HTML(<!doctype html>
     :root { --bg:#161513; --card:#22201d; --ink:#f1ede6; --muted:#a39c90; --accent:#f1ede6; --line:#3a3631; }
   }
   * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 system-ui, sans-serif; }
   main { max-width:520px; margin:0 auto; padding:16px; }
   h1 { font-size:22px; margin:8px 0 4px; }
@@ -27,11 +28,17 @@ static const char MAIN_PAGE[] PROGMEM = R"HTML(<!doctype html>
   .row { display:flex; gap:8px; flex-wrap:wrap; }
   .row > * { flex:1; }
   input[type=file] { display:none; }
-  input[type=text] { width:100%; font:inherit; padding:12px; border-radius:10px; border:1px solid var(--line);
+  input[type=text], input[type=password] { width:100%; font:inherit; padding:12px; border-radius:10px; border:1px solid var(--line);
     background:transparent; color:var(--ink); margin-bottom:8px; }
   canvas { display:block; width:100%; height:auto; margin:12px 0; background:#fff; image-rendering:pixelated; border-radius:4px; }
   label.slider { display:block; font-size:14px; color:var(--muted); margin-bottom:12px; }
   label.slider input { width:100%; }
+  label.field { display:block; font-size:14px; color:var(--muted); margin-bottom:8px; }
+  select { display:block; width:100%; font:inherit; padding:12px; margin-top:4px; border-radius:10px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); }
+  label.check { display:flex; gap:8px; align-items:center; margin:12px 0; }
+  details { margin-top:12px; }
+  summary { color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:8px; }
   #msg { min-height:1.4em; font-size:14px; color:var(--muted); }
 </style>
 </head>
@@ -39,6 +46,32 @@ static const char MAIN_PAGE[] PROGMEM = R"HTML(<!doctype html>
 <main>
   <h1>harold printer</h1>
   <div id="status">Checking the printer...</div>
+
+  <section>
+    <h2>Claude</h2>
+    <label class="field">Theme
+      <select id="theme">
+        <option value="a joke about beer">Beer jokes</option>
+        <option value="a terrible pun about beer">Terrible beer puns</option>
+        <option value="a haiku about beer">Beer haiku</option>
+        <option value="tasting notes for an imaginary craft beer with a silly name">Made-up tasting notes</option>
+        <option value="a fortune cookie fortune for someone at the pub">Pub fortune cookie</option>
+        <option value="a pub quiz question, with the answer underneath">Pub quiz question</option>
+        <option value="a motivational quote from a very tired barman">Tired barman wisdom</option>
+        <option value="a fake but plausible beer fact">Fake beer facts</option>
+        <option value="surprise">Surprise me (a different one each time)</option>
+        <option value="custom">Something else...</option>
+      </select>
+    </label>
+    <input id="customTheme" type="text" maxlength="200" placeholder="e.g. a limerick about my cat Harold" hidden>
+    <label class="check"><input id="claudeButton" type="checkbox"> The big button asks Claude</label>
+    <button id="askClaude" style="width:100%">Ask Claude now</button>
+    <details id="keyBox">
+      <summary id="keyState">API key</summary>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+      <button class="ghost" id="saveKey" style="width:100%">Save key</button>
+    </details>
+  </section>
 
   <section>
     <h2>Photo</h2>
@@ -227,6 +260,45 @@ $('printText').onclick = () => {
 $('randomPhoto').onclick = () => post('/api/photo', null, 'Printing a random photo');
 $('feed').onclick = () => post('/api/feed', null, 'Feeding');
 $('test').onclick = () => post('/api/test', null, 'Printing test page');
+
+// --- Claude
+async function loadClaude() {
+  try {
+    const c = await (await fetch('/api/claude')).json();
+    $('claudeButton').checked = c.button;
+    $('keyState').textContent = c.has_key ? 'API key saved (tap to change)' : 'API key needed: tap to add';
+    if (!c.has_key) $('keyBox').open = true;
+    const opt = [...$('theme').options].find(o => o.value === c.theme);
+    if (opt) $('theme').value = c.theme;
+    else { $('theme').value = 'custom'; $('customTheme').value = c.theme; $('customTheme').hidden = false; }
+  } catch (e) { /* page still works without it */ }
+}
+function saveClaude(extra) {
+  const theme = $('theme').value === 'custom' ? $('customTheme').value.trim() : $('theme').value;
+  const body = new URLSearchParams({button: $('claudeButton').checked ? '1' : '0', ...extra});
+  if (theme) body.set('theme', theme);
+  return fetch('/api/claude', {method: 'POST', body});
+}
+$('theme').onchange = () => {
+  $('customTheme').hidden = $('theme').value !== 'custom';
+  if ($('theme').value !== 'custom') saveClaude();
+};
+$('customTheme').onchange = () => saveClaude();
+$('claudeButton').onchange = () => saveClaude();
+$('saveKey').onclick = async () => {
+  const key = $('apiKey').value.trim();
+  if (!key) return;
+  await saveClaude({key});
+  $('apiKey').value = '';
+  $('keyBox').open = false;
+  say('Key saved.');
+  loadClaude();
+};
+$('askClaude').onclick = async () => {
+  await saveClaude();
+  post('/api/claude/print', null, 'Asking Claude');
+};
+loadClaude();
 
 refresh();
 setInterval(refresh, 5000);

@@ -17,10 +17,11 @@
 
 #define UART        uart1
 #define UART_IRQ    UART1_IRQ
-#define LINE_MAX    200
+#define LINE_MAX    1024
 #define RX_BUF_SIZE 4096  // power of two
 #define IMAGE_TIMEOUT_MS 3000
 #define MAX_LABEL_DOTS   864
+#define REMOTE_BUTTON_MS 15000  // button reverts to local if heartbeats stop
 
 // The UART FIFO is only 32 bytes, so the RX interrupt moves bytes into a
 // ring buffer and bridge_task() drains it from the main loop.
@@ -35,6 +36,8 @@ static size_t image_len, image_got;
 static uint16_t image_w, image_h;
 static uint32_t image_last_ms;
 static bool receiving_image;
+
+static uint32_t remote_button_until_ms;
 
 static void on_uart_rx(void) {
   while (uart_is_readable(UART)) {
@@ -86,6 +89,25 @@ static void printable_area(uint32_t *w, uint32_t *h) {
   }
 }
 
+// TEXT arguments use \n for a line break and \\ for a backslash.
+static void unescape(char *s) {
+  char *out = s;
+  for (; *s; s++) {
+    if (*s == '\\' && s[1] == 'n') { *out++ = '\n'; s++; }
+    else if (*s == '\\' && s[1] == '\\') { *out++ = '\\'; s++; }
+    else *out++ = *s;
+  }
+  *out = '\0';
+}
+
+// Characters per line in the font printer_text() uses.
+static unsigned text_columns(void) {
+  uint32_t w, h;
+  printable_area(&w, &h);
+  if (printer_active_mode() == PRINTER_MODE_TSPL) return (unsigned) ((w - 80) / 16);  // font 3, 16 dots
+  return (unsigned) (w / 12);  // font A, 12 dots
+}
+
 static void start_image(const char *args) {
   unsigned w = 0, h = 0;
   if (sscanf(args, "%u %u", &w, &h) != 2 || w == 0 || h == 0 || w > 0xFFFF || h > 0xFFFF) {
@@ -118,8 +140,23 @@ static void run(char *cmd) {
   if (strcmp(cmd, "HELLO") == 0) {
     uint32_t w, h;
     printable_area(&w, &h);
-    reply("OK ready=%d mode=%s width=%lu height=%lu", transport_ready() ? 1 : 0,
-          printer_mode_name(printer_active_mode()), (unsigned long) w, (unsigned long) h);
+    reply("OK ready=%d mode=%s width=%lu height=%lu cols=%u", transport_ready() ? 1 : 0,
+          printer_mode_name(printer_active_mode()), (unsigned long) w, (unsigned long) h,
+          text_columns());
+    return;
+  }
+  if (strcmp(cmd, "BUTTON") == 0) {
+    // BUTTON REMOTE hands the button to the front end for REMOTE_BUTTON_MS;
+    // it re-sends this as a heartbeat. BUTTON LOCAL takes it back now.
+    if (strcmp(args, "REMOTE") == 0) {
+      remote_button_until_ms = to_ms_since_boot(get_absolute_time()) + REMOTE_BUTTON_MS;
+      reply("OK");
+    } else if (strcmp(args, "LOCAL") == 0) {
+      remote_button_until_ms = 0;
+      reply("OK");
+    } else {
+      reply("ERR usage: BUTTON REMOTE|LOCAL");
+    }
     return;
   }
   if (strcmp(cmd, "IMG") == 0) {
@@ -140,6 +177,7 @@ static void run(char *cmd) {
 
   log_printf("bridge: %s\r\n", cmd);
   if (strcmp(cmd, "TEXT") == 0) {
+    unescape(args);
     reply_result(printer_text(args));
   } else if (strcmp(cmd, "FEED") == 0) {
     int n = atoi(args);
@@ -151,6 +189,15 @@ static void run(char *cmd) {
   } else {
     reply_result(printer_test());
   }
+}
+
+bool bridge_button_remote(void) {
+  if (!remote_button_until_ms) return false;
+  return (int32_t) (remote_button_until_ms - to_ms_since_boot(get_absolute_time())) > 0;
+}
+
+void bridge_send_event(const char *name) {
+  reply("EVENT %s", name);
 }
 
 void bridge_init(void) {

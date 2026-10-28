@@ -20,7 +20,7 @@ typedef struct {
 void tspl_set_label(const tspl_label_t *label);
 void tspl_get_label(tspl_label_t *label);
 
-// One label with a line of text.
+// One label of text. '\n' starts a new line; long lines are not wrapped.
 bool tspl_print_text(const char *text);
 
 // Feeds `n` blank labels.

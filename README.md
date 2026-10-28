@@ -109,7 +109,8 @@ The layers are kept separate so the USB transport can be swapped for TTL serial 
 ## Wi-Fi printing (TinyPICO)
 
 A TinyPICO (ESP32) can serve a web page for printing photos and text from your
-phone. It talks to the Pico over a serial link on GP4/GP5. See
+phone, and can make the button print a fresh joke from Claude instead of a
+photo. It talks to the Pico over a serial link on GP4/GP5. See
 [tinypico/README.md](tinypico/README.md) for the wiring and setup.
 
 ## Building for a Pico W (RP2040)
@@ -127,7 +128,7 @@ keep photos/ under about 1.5 MB of converted images.
 
 ## Not yet verified on hardware
 
-- Anything on the Pico W (RP2040) build, and the TinyPICO serial link and web page. The sketch hasn't been compiled yet; the page was tested in a browser against a mock.
+- Anything on the Pico W (RP2040) build, and the TinyPICO serial link, web page and Claude printouts. The sketch hasn't been compiled yet; the page was tested in a browser against a mock, and the JSON and word-wrap helpers on a PC. No live Claude request has been made from it yet.
 - TSPL mode beyond plain text: the test label, photos via BITMAP, `feed`, and label sizes other than 4×6 in.
 
 - Printing of any kind: the test page, bitmap alignment, and running `test` 10 times in a row.
