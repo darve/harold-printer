@@ -35,6 +35,7 @@ add_custom_command(
 
 add_executable(harold_printer
   src/main.c
+  src/bridge.c
   src/button.c
   src/escpos.c
   src/log.c
@@ -54,6 +55,7 @@ target_include_directories(harold_printer PRIVATE src)
 
 target_link_libraries(harold_printer PRIVATE
   pico_stdlib
+  hardware_uart
   pico_unique_id
   pico_rand
   tinyusb_device

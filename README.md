@@ -23,6 +23,8 @@ The printer plugs into a female USB-A breakout, driven by Pico-PIO-USB:
 
 The photo button is a momentary push button between **GP15 (phys pin 20)** and any GND pin. No resistor is needed, because the firmware enables the internal pull-up.
 
+For Wi-Fi printing, a TinyPICO connects to GP4 (pin 6) and GP5 (pin 7). See [tinypico/README.md](tinypico/README.md).
+
 The Pico's own micro-USB port is a USB CDC serial device. It carries the logs and the command shell, and it also powers the board.
 
 ## Build
@@ -95,15 +97,38 @@ The layers are kept separate so the USB transport can be swapped for TTL serial 
 | `src/photos.c` | Prints a built-in photo, chosen at random |
 | `src/shell.c` | Line-based command shell |
 | `src/button.c` | Debounced push button on GP15 |
+| `src/bridge.c` | UART1 (GP4/GP5) command link for the Wi-Fi front end |
 | `src/usb_probe.c` | Logs every device's descriptors on mount, and unplug events |
 | `src/log.c` | Ring-buffered output to the CDC port |
 | `src/usb_descriptors.c` | Descriptors for the Pico's own CDC serial port |
 | `src/tusb_config.h` | TinyUSB config: device on rhport 0, PIO-USB host on rhport 1 |
 | `tools/convert_photos.py` | Converts `photos/` to a C table at build time |
+| `tinypico/harold_wifi/` | Arduino sketch for the TinyPICO Wi-Fi front end and its web page |
 | `lib/Pico-PIO-USB` | Submodule, pinned to 0.7.2 for the RP2350-E9 fix (unplug detection) |
+
+## Wi-Fi printing (TinyPICO)
+
+A TinyPICO (ESP32) can serve a web page for printing photos and text from your
+phone, and can make the button print a fresh joke from Claude instead of a
+photo. It talks to the Pico over a serial link on GP4/GP5. See
+[tinypico/README.md](tinypico/README.md) for the wiring and setup.
+
+## Building for a Pico W (RP2040)
+
+The same firmware runs on an original Pico W (or Pico):
+
+```
+cmake -B build-picow -DPICO_BOARD=pico_w
+cmake --build build-picow
+```
+
+The wiring is the same. The Pico W's LED is on its Wi-Fi chip, which this
+firmware doesn't use, so the LED stays off. The Pico W has 2 MB of flash, so
+keep photos/ under about 1.5 MB of converted images.
 
 ## Not yet verified on hardware
 
+- Anything on the Pico W (RP2040) build, and the TinyPICO serial link, web page and Claude printouts. The sketch hasn't been compiled yet; the page was tested in a browser against a mock, and the JSON and word-wrap helpers on a PC. No live Claude request has been made from it yet.
 - TSPL mode beyond plain text: the test label, photos via BITMAP, `feed`, and label sizes other than 4×6 in.
 
 - Printing of any kind: the test page, bitmap alignment, and running `test` 10 times in a row.

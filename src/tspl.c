@@ -58,11 +58,24 @@ static void sanitize(char *dst, size_t n, const char *src) {
 }
 
 bool tspl_print_text(const char *text) {
-  char safe[120];
-  sanitize(safe, sizeof(safe), text);
-  return begin_label()
-      && cmd("TEXT 40,40,\"3\",0,1,1,\"%s\"", safe)
-      && end_label();
+  // One TEXT command per line, 32 dots apart (font 3 is 24 dots tall).
+  if (!begin_label()) return false;
+  uint32_t y = 40;
+  const char *p = text;
+  while (*p) {
+    const char *nl = strchr(p, '\n');
+    size_t n = nl ? (size_t) (nl - p) : strlen(p);
+    char raw[120], safe[120];
+    if (n > sizeof(raw) - 1) n = sizeof(raw) - 1;
+    memcpy(raw, p, n);
+    raw[n] = '\0';
+    sanitize(safe, sizeof(safe), raw);
+    if (safe[0] && !cmd("TEXT 40,%lu,\"3\",0,1,1,\"%s\"", (unsigned long) y, safe)) return false;
+    y += 32;
+    if (!nl) break;
+    p = nl + 1;
+  }
+  return end_label();
 }
 
 bool tspl_feed(uint8_t n) {
